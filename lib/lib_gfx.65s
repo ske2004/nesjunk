@@ -1,0 +1,267 @@
+;
+; Commands:
+; 
+; 00: Enable horizontal increments: ()
+; 01: Enable vertical increments: ()
+; 02: Draw string: (offs: u16, length: u8, string: [length])
+;
+
+LIBGFX_CMD_BUF = $0300
+
+LIBGFX_PAR1_INDEX = $00
+LIBGFX_PAR2_SRC = $01
+LIBGFX_PAR2_JMPADDR = $03
+
+; Buffer read/write indexes
+LIBGFX_ZPR1_BUFWRITE = $05
+LIBGFX_ZPR1_BUFREAD = $06
+LIBGFX_ZPR1_LOCK = $07
+
+; PPU mirrors
+LIBGFX_ZPR1_PPUCTRL = $08
+
+
+.SEGMENT "PRG"
+
+libgfx_default_pal: .BYTE $0F, $30, $10, $00
+
+.MACRO LIBGFX_WAIT_VBLANK
+    @wait_vblank:
+        BIT PPUSTATUS
+        BPL @wait_vblank
+.ENDMACRO
+
+.MACRO LIBGFX_NMI
+    PHA
+    TXA
+    PHA
+    TYA
+    PHA
+    PHP
+
+    JSR libgfx_swap
+
+    PLP
+    PLA
+    TYA
+    PLA
+    TXA
+    PLA
+
+    RTI
+.ENDMACRO
+
+.MACRO LIBGFX_PUSH_A
+    LDX LIBGFX_ZPR1_BUFWRITE
+    STA LIBGFX_CMD_BUF, X
+    INC LIBGFX_ZPR1_BUFWRITE
+.ENDMACRO
+
+.MACRO LIBGFX_READ_A
+    LDX LIBGFX_ZPR1_BUFREAD
+    LDA LIBGFX_CMD_BUF, X
+    INC LIBGFX_ZPR1_BUFREAD
+.ENDMACRO
+
+.MACRO LIBGFX_READ_AY
+    LDX LIBGFX_ZPR1_BUFREAD
+    LDY LIBGFX_CMD_BUF, X
+    INX
+    LDA LIBGFX_CMD_BUF, X
+    INC LIBGFX_ZPR1_BUFREAD
+    INC LIBGFX_ZPR1_BUFREAD
+.ENDMACRO
+
+.MACRO LIBGFX_GET_PPUCTRL
+    LDA LIBGFX_ZPR1_PPUCTRL
+.ENDMACRO
+
+.MACRO LIBGFX_SET_PPUCTRL
+    STA LIBGFX_ZPR1_PPUCTRL
+    STA PPUCTRL
+.ENDMACRO
+
+.MACRO LIBGFX_PUSH8 byte
+    LDA #byte
+    LIBGFX_PUSH_A
+.ENDMACRO
+
+.MACRO LIBGFX_PUSH16 word
+    LDA #<word
+    LIBGFX_PUSH_A
+    LDA #>word
+    LIBGFX_PUSH_A
+.ENDMACRO
+
+.MACRO LIBGFX_PUSH_XY px, py 
+    LIBGFX_PUSH16 ($2000+px+py*32)
+.ENDMACRO
+
+.PROC libgfx_begin
+; Wait for lock to be released
+@loop:
+    LDA LIBGFX_ZPR1_LOCK
+    BNE @loop
+
+; Disable NMI
+    LIBGFX_GET_PPUCTRL
+    AND #%01111111
+    LIBGFX_SET_PPUCTRL
+
+    LDA #$00
+    STA LIBGFX_ZPR1_BUFREAD
+    STA LIBGFX_ZPR1_BUFWRITE
+
+    RTS
+.ENDPROC
+
+.PROC libgfx_end
+; Enable NMI
+    LIBGFX_GET_PPUCTRL
+    ORA #%10000000
+    LIBGFX_SET_PPUCTRL
+
+    RTS
+.ENDPROC
+
+.MACRO LIBGFX_BEGIN
+    JSR libgfx_begin
+.ENDMACRO
+
+.MACRO LIBGFX_END
+    JSR libgfx_end
+.ENDMACRO
+
+; LIBGFX_PAR1_INDEX = Pallete index
+; LIBGFX_PAR2_SRC   = Pallete source
+.PROC libgfx_set_pal
+    LDA #$3F
+    STA PPUADDR
+    LDA LIBGFX_PAR1_INDEX
+    ASL
+    ASL
+    STA PPUADDR
+
+    LDY #$00
+
+    LDA (LIBGFX_PAR2_SRC), Y
+    STA PPUDATA
+    INY
+    LDA (LIBGFX_PAR2_SRC), Y
+    STA PPUDATA
+    INY
+    LDA (LIBGFX_PAR2_SRC), Y
+    STA PPUDATA
+    INY
+    LDA (LIBGFX_PAR2_SRC), Y
+    STA PPUDATA
+
+    RTS
+.ENDPROC
+
+.PROC libgfx_init
+; Set default palette
+    PARAM LIBGFX_PAR1_INDEX, 0
+    PARAM2 LIBGFX_PAR2_SRC, libgfx_default_pal
+    JSR libgfx_set_pal
+; Set nametables to 0
+    LDA #$20
+    STA PPUADDR
+    LDA #$00
+    STA PPUADDR
+    LDX #$00
+@nametable_loop:
+    STA PPUDATA
+    STA PPUDATA
+    STA PPUDATA
+    STA PPUDATA
+    STA PPUDATA
+    STA PPUDATA
+    STA PPUDATA
+    STA PPUDATA
+    INX
+    BNE @nametable_loop
+
+; Enable rendering
+    LDA #$00
+    ORA #%00011110
+    STA PPUMASK
+
+; Enable NMI
+    LDA #$00
+    ORA #%10000000
+    LIBGFX_SET_PPUCTRL
+
+    RTS
+.ENDPROC
+
+.PROC _cmd_incmode_hor
+    LIBGFX_GET_PPUCTRL
+    AND #%11111011
+    LIBGFX_SET_PPUCTRL
+    RTS
+.ENDPROC
+
+.PROC _cmd_incmode_ver
+    LIBGFX_GET_PPUCTRL
+    ORA #%00000100
+    LIBGFX_SET_PPUCTRL
+    RTS
+.ENDPROC
+
+.PROC _cmd_draw_string
+    LIBGFX_READ_AY
+    STA PPUADDR
+    STY PPUADDR
+    LIBGFX_READ_A
+    TAY
+    @loop:
+        BEQ @end
+        LIBGFX_READ_A
+        STA PPUDATA
+        DEY
+        BNE @loop
+    @end:
+    RTS
+.ENDPROC
+
+_call_subroutine:
+    JMP (LIBGFX_PAR2_JMPADDR)
+
+_cmd_jmptbl_lo:
+    .BYTE <_cmd_incmode_hor
+    .BYTE <_cmd_incmode_ver
+    .BYTE <_cmd_draw_string
+
+_cmd_jmptbl_hi:
+    .BYTE >_cmd_incmode_hor
+    .BYTE >_cmd_incmode_ver
+    .BYTE >_cmd_draw_string
+
+.PROC libgfx_swap
+    LDA $01
+    STA LIBGFX_ZPR1_LOCK
+    @loop:
+        LDX LIBGFX_ZPR1_BUFREAD
+        CPX LIBGFX_ZPR1_BUFWRITE
+        BEQ @end
+
+        LDA LIBGFX_CMD_BUF, X
+        TAY
+        INC LIBGFX_ZPR1_BUFREAD
+        LDA _cmd_jmptbl_lo, Y
+        STA LIBGFX_PAR2_JMPADDR
+        LDA _cmd_jmptbl_hi, Y
+        STA LIBGFX_PAR2_JMPADDR+1
+        JSR _call_subroutine
+
+        JMP @loop
+    @end:
+
+    LDA #$00
+    STA LIBGFX_ZPR1_LOCK
+    STA PPUSCROLL
+    STA PPUSCROLL
+    RTS
+.ENDPROC
+

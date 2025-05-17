@@ -1,0 +1,6 @@
+*.nes
+*.o
+*.exe
+*.obj
+*.pdb
+*.dbg

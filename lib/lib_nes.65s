@@ -1,0 +1,50 @@
+;
+; Low level NES setup
+; 
+; Ye need to declare: _NMI, _RESET, _IRQ
+;
+
+APUPULSE1 = $4000
+APUPULSE2 = $4004
+APUTRI    = $4008
+APUNOISE  = $400C
+APUDMC    = $4010
+APUCTRL   = $4015
+APUSTATUS = $4015
+APUFRAME  = $4017
+
+PPUCTRL   = $2000
+PPUMASK   = $2001
+PPUSTATUS = $2002
+OAMADDR   = $2003
+OAMDATA   = $2004
+PPUSCROLL = $2005
+PPUADDR   = $2006
+PPUDATA   = $2007
+OAMDMA    = $4014
+
+.MACRO PARAM reg, value
+    LDA #value
+    STA reg
+.ENDMACRO
+
+.MACRO PARAM2 reg, value
+    LDA #<value
+    STA reg
+    LDA #>value
+    STA reg+1
+.ENDMACRO
+
+.SEGMENT "HEADER"
+
+.BYTE "NES", $1A
+.BYTE $02  ; PRG-ROM pages (16KB each)
+.BYTE $01  ; CHR-ROM pages (8KB each)
+.BYTE $00  ; MapperLo, mirroring, blah
+.BYTE $00  ; MapperHi
+
+.SEGMENT "VECTORS"
+
+.WORD _NMI
+.WORD _RESET
+.WORD _IRQ

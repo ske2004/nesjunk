@@ -1,0 +1,57 @@
+; Thanks to https://www.nesdev.org/wiki/Init_code :)
+
+.MACRO LIBINIT_INIT
+; Disable interrupts and decimal mode
+    SEI 
+    CLD 
+
+; Disable APU frame interrupt & DMC IRQ
+    LDX #1<<6
+    STX APUFRAME 
+    LDX #0
+    STX APUDMC
+
+; Stack setup
+    LDX #$FF
+    TXS 
+
+; Disable NMI and rendering
+    LDX #$00
+    STX PPUCTRL
+    STX PPUMASK
+
+; Wait for first vblank (Check N flag, bit 7 of PPUSTATUS)
+    BIT PPUSTATUS
+@vb1:
+    BIT PPUSTATUS
+    BPL @vb1      
+
+; Clear RAM
+    LDX #$00
+    TXA
+@clearmem:
+    STA $0000,X
+    STA $0100,X
+    STA $0200,X
+    STA $0300,X
+    STA $0400,X
+    STA $0500,X
+    STA $0600,X
+    STA $0700,X
+    INX
+    BNE @clearmem
+
+; Init OAM to $FF
+    LDX #$00
+    LDA #$FF
+@oammemset:
+    STA $0200,X
+    INX
+    BNE @oammemset
+
+; Wait for second vblank
+@vb2:
+    BIT PPUSTATUS
+    BPL @vb2
+
+.ENDMACRO
