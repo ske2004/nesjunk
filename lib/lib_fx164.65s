@@ -29,9 +29,9 @@ _hex_lut:
             LDA #((w>>8)&$7F)
             STA addr+1
         .ELSE
-            LDA #((w&$FF) ^ $FF)
+            LDA #(((w-1)&$FF) ^ $FF)
             STA addr
-            LDA #(((w>>8)&$7F) ^ $FF)
+            LDA #((((w-1)>>8)&$7F) ^ $FF)
             STA addr+1
         .ENDIF
     .ENDSCOPE
