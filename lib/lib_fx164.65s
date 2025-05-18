@@ -1,0 +1,169 @@
+;
+; Fixed point numbers, 16.4
+;
+; WWWW WWWW WWWW FFFF
+;
+; S = Sign bit
+; W = Whole part
+; F = Fractional part
+;
+
+LIBFX164_PAR2_ADDR = $00
+
+.SEGMENT "PRG"
+
+_sign_lut:
+    .BYTE '+', '-'
+
+_hex_lut:
+    .BYTE '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+
+.DEFINE LIBFX164_PARSE(whole, frac) (((whole&$7FF)<<4) | (frac&$F))
+
+.MACRO LIBFX164_SET addr, sign, whole, frac
+    .SCOPE
+        w := LIBFX164_PARSE(whole, frac)
+        .IF sign = 0 || (w = 0)
+            LDA #(w&$FF)
+            STA addr
+            LDA #((w>>8)&$7F)
+            STA addr+1
+        .ELSE
+            LDA #((w&$FF) ^ $FF)
+            STA addr
+            LDA #(((w>>8)&$7F) ^ $FF)
+            STA addr+1
+        .ENDIF
+    .ENDSCOPE
+.ENDMACRO
+
+.MACRO LIBFX164_ADD addr1, addr2 
+    CLC
+    LDA addr1
+    ADC addr2
+    STA addr1
+    LDA addr1+1
+    ADC addr2+1
+    STA addr1+1
+.ENDMACRO
+
+.MACRO LIBFX164_DIV2 addr
+    LDA addr+1
+    CMP #$80
+    ROR
+    STA addr+1
+    LDA addr
+    ROR
+    STA addr
+.ENDMACRO
+
+.MACRO LIBFX164_DIV4 addr
+    LIBFX164_DIV2 addr
+    LIBFX164_DIV2 addr
+.ENDMACRO
+
+.MACRO LIBFX164_DIV8 addr
+    LIBFX164_DIV2 addr
+    LIBFX164_DIV2 addr
+    LIBFX164_DIV2 addr
+.ENDMACRO
+
+.MACRO LIBFX164_DIV16 addr
+    LIBFX164_DIV2 addr
+    LIBFX164_DIV2 addr
+    LIBFX164_DIV2 addr
+    LIBFX164_DIV2 addr
+.ENDMACRO
+
+; LIBFX164_PAR2_ADDR = address of the number
+.PROC libfx164_draw
+; load low into X, and high into Y
+    LDY #$00
+    LDA (LIBFX164_PAR2_ADDR), Y
+    TAX
+    LDY #$01
+    LDA (LIBFX164_PAR2_ADDR), Y
+    TAY
+
+; check sign and invert if negative
+    TAY
+    BMI @neg
+    JMP @pos
+@neg:
+    TXA
+    EOR #$FF
+    CLC
+    ADC #$01
+    TAX
+    TYA
+    ADC #$00
+    EOR #$7F
+    TAY
+@pos:
+
+; num[0..3] : F
+    TXA
+    AND #$0F
+    PHA
+
+; whole[0..3] : W[0]
+    TXA
+    LSR
+    LSR
+    LSR
+    LSR
+    AND #$0F
+    PHA
+
+; whole[4..7] : W[1]
+    TYA
+    AND #$0F
+    PHA
+
+; whole[8..10] : W[2]
+    TYA
+    LSR
+    LSR
+    LSR
+    LSR
+    AND #$07
+    PHA
+
+; push sign
+    TYA 
+    ROL
+    LDA #$00
+    ADC #$00
+    PHA
+
+    LIBGFX_PUSH8 $06
+
+    PLA
+    TAX
+    LDA _sign_lut, X
+    LIBGFX_PUSH_A
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A 
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A
+
+    LIBGFX_PUSH8 '.'
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A
+
+    RTS
+.ENDPROC

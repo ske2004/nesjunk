@@ -23,6 +23,12 @@ PPUADDR   = $2006
 PPUDATA   = $2007
 OAMDMA    = $4014
 
+CTRLSTROBE = $4016
+CTRLREAD_1 = $4016
+CTRLREAD_2 = $4017
+
+OAM       = $0200
+
 .MACRO PARAM reg, value
     LDA #value
     STA reg

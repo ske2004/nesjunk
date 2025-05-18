@@ -12,6 +12,11 @@ LIBGFX_PAR1_INDEX = $00
 LIBGFX_PAR2_SRC = $01
 LIBGFX_PAR2_JMPADDR = $03
 
+LIBGFX_PAR1_X = $00
+LIBGFX_PAR1_Y = $01
+LIBGFX_PAR1_TILE = $02
+LIBGFX_PAR1_SPRID = $03
+
 ; Buffer read/write indexes
 LIBGFX_ZPR1_BUFWRITE = $05
 LIBGFX_ZPR1_BUFREAD = $06
@@ -23,7 +28,8 @@ LIBGFX_ZPR1_PPUCTRL = $08
 
 .SEGMENT "PRG"
 
-libgfx_default_pal: .BYTE $0F, $30, $10, $00
+libgfx_default_pal1: .BYTE $02, $38, $0F, $0F
+libgfx_default_pal2: .BYTE $02, $31, $0F, $0F
 
 .MACRO LIBGFX_WAIT_VBLANK
     @wait_vblank:
@@ -93,11 +99,23 @@ libgfx_default_pal: .BYTE $0F, $30, $10, $00
     LIBGFX_PUSH_A
 .ENDMACRO
 
+.MACRO LIBGFX_PUSH_STR String
+    LDA #(.strlen(String))
+    LIBGFX_PUSH_A 
+    LDX LIBGFX_ZPR1_BUFWRITE
+    .REPEAT .strlen(String), I
+        LDA #(.strat(String, I))
+        STA LIBGFX_CMD_BUF, X
+        INX
+    .ENDREPEAT
+    STX LIBGFX_ZPR1_BUFWRITE
+.ENDMACRO
+
 .MACRO LIBGFX_PUSH_XY px, py 
     LIBGFX_PUSH16 ($2000+px+py*32)
 .ENDMACRO
 
-.PROC libgfx_begin
+.PROC libgfx_begin_tilemap
 ; Wait for lock to be released
 @loop:
     LDA LIBGFX_ZPR1_LOCK
@@ -115,22 +133,57 @@ libgfx_default_pal: .BYTE $0F, $30, $10, $00
     RTS
 .ENDPROC
 
-.PROC libgfx_end
+.PROC libgfx_end_tilemap
 ; Enable NMI
     LIBGFX_GET_PPUCTRL
     ORA #%10000000
     LIBGFX_SET_PPUCTRL
 
+    LIBGFX_WAIT_VBLANK
     RTS
 .ENDPROC
 
-.MACRO LIBGFX_BEGIN
-    JSR libgfx_begin
+.MACRO LIBGFX_BEGIN_TILEMAP
+    JSR libgfx_begin_tilemap
 .ENDMACRO
 
-.MACRO LIBGFX_END
-    JSR libgfx_end
+.MACRO LIBGFX_END_TILEMAP
+    JSR libgfx_end_tilemap
 .ENDMACRO
+
+
+; LIBGFX_PAR1_X = sprite X
+; LIBGFX_PAR1_Y = sprite Y
+; LIBGFX_PAR1_TILE = sprite tile
+; LIBGFX_PAR1_SPRID = sprite id
+.PROC libgfx_put_sprite
+@loop:
+    LDA LIBGFX_ZPR1_LOCK
+    BNE @loop
+
+    LDA LIBGFX_PAR1_SPRID
+    ASL
+    ASL
+    TAX 
+
+    LDA LIBGFX_PAR1_Y
+    STA OAM, X
+    INX
+
+    LDA LIBGFX_PAR1_TILE
+    STA OAM, X
+    INX
+
+    LDA #$00
+    STA OAM, X
+    INX
+ 
+    LDA LIBGFX_PAR1_X
+    STA OAM, X
+    INX
+
+    RTS
+.ENDPROC
 
 ; LIBGFX_PAR1_INDEX = Pallete index
 ; LIBGFX_PAR2_SRC   = Pallete source
@@ -162,8 +215,13 @@ libgfx_default_pal: .BYTE $0F, $30, $10, $00
 .PROC libgfx_init
 ; Set default palette
     PARAM LIBGFX_PAR1_INDEX, 0
-    PARAM2 LIBGFX_PAR2_SRC, libgfx_default_pal
+    PARAM2 LIBGFX_PAR2_SRC, libgfx_default_pal1
     JSR libgfx_set_pal
+
+    PARAM LIBGFX_PAR1_INDEX, 4
+    PARAM2 LIBGFX_PAR2_SRC, libgfx_default_pal2
+    JSR libgfx_set_pal
+
 ; Set nametables to 0
     LDA #$20
     STA PPUADDR
@@ -239,7 +297,7 @@ _cmd_jmptbl_hi:
     .BYTE >_cmd_draw_string
 
 .PROC libgfx_swap
-    LDA $01
+    LDA #$01
     STA LIBGFX_ZPR1_LOCK
     @loop:
         LDX LIBGFX_ZPR1_BUFREAD
@@ -258,10 +316,13 @@ _cmd_jmptbl_hi:
         JMP @loop
     @end:
 
+    LDA #$02
+    STA OAMDMA
+
     LDA #$00
+    STA PPUSCROLL
+    STA PPUSCROLL
     STA LIBGFX_ZPR1_LOCK
-    STA PPUSCROLL
-    STA PPUSCROLL
     RTS
 .ENDPROC
 
