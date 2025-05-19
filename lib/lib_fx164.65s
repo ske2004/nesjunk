@@ -96,8 +96,8 @@ _hex_lut:
     ADC #$01
     TAX
     TYA
-    ADC #$00
     EOR #$7F
+    ADC #$00
     TAY
 @pos:
 
