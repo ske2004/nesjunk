@@ -8,15 +8,7 @@
 ; F = Fractional part
 ;
 
-LIBFX164_PAR2_ADDR = $00
-
 .SEGMENT "PRG"
-
-_sign_lut:
-    .BYTE '+', '-'
-
-_hex_lut:
-    .BYTE '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 
 .DEFINE LIBFX164_PARSE(whole, frac) (((whole&$7FF)<<4) | (frac&$F))
 
@@ -76,94 +68,38 @@ _hex_lut:
 .ENDMACRO
 
 ; LIBFX164_PAR2_ADDR = address of the number
-.PROC libfx164_draw
-; load low into X, and high into Y
-    LDY #$00
-    LDA (LIBFX164_PAR2_ADDR), Y
-    TAX
+; Result : A
+.PROC libfx164_to_scr
     LDY #$01
     LDA (LIBFX164_PAR2_ADDR), Y
-    TAY
+    CMP #$10
+    BMI @no_overflow
+        LDA #$FF
+        RTS
 
-; check sign and invert if negative
-    TAY
-    BMI @neg
-    JMP @pos
-@neg:
-    TXA
-    EOR #$FF
-    CLC
-    ADC #$01
-    TAX
-    TYA
-    EOR #$7F
-    ADC #$00
-    TAY
-@pos:
+    @no_overflow:
+    LDY #$01
+    LDA (LIBFX164_PAR2_ADDR), Y
+    BPL @no_negative
+        LDA #$FF
+        RTS
 
-; num[0..3] : F
-    TXA
-    AND #$0F
-    PHA
-
-; whole[0..3] : W[0]
-    TXA
-    LSR
+    @no_negative:   
+    LDY #$01
+    LDA (LIBFX164_PAR2_ADDR), Y
+    ASL
+    ASL
+    ASL
+    ASL
+    STA TMP_U8_1
+    LDY #$00
+    LDA (LIBFX164_PAR2_ADDR), Y
+    LSR 
     LSR
     LSR
     LSR
     AND #$0F
-    PHA
-
-; whole[4..7] : W[1]
-    TYA
-    AND #$0F
-    PHA
-
-; whole[8..10] : W[2]
-    TYA
-    LSR
-    LSR
-    LSR
-    LSR
-    AND #$07
-    PHA
-
-; push sign
-    TYA 
-    ROL
-    LDA #$00
-    ADC #$00
-    PHA
-
-    LIBGFX_PUSH8 $06
-
-    PLA
-    TAX
-    LDA _sign_lut, X
-    LIBGFX_PUSH_A
-
-    PLA
-    TAX
-    LDA _hex_lut, X
-    LIBGFX_PUSH_A
-
-    PLA
-    TAX
-    LDA _hex_lut, X
-    LIBGFX_PUSH_A 
-
-    PLA
-    TAX
-    LDA _hex_lut, X
-    LIBGFX_PUSH_A
-
-    LIBGFX_PUSH8 '.'
-
-    PLA
-    TAX
-    LDA _hex_lut, X
-    LIBGFX_PUSH_A
-
+    ORA TMP_U8_1
     RTS
 .ENDPROC
+

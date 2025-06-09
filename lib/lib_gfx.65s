@@ -6,26 +6,6 @@
 ; 02: Draw string: (offs: u16, length: u8, string: [length])
 ;
 
-LIBGFX_CMD_BUF = $0300
-
-LIBGFX_PAR1_INDEX = $00
-LIBGFX_PAR2_SRC = $01
-LIBGFX_PAR2_JMPADDR = $03
-
-LIBGFX_PAR1_X = $00
-LIBGFX_PAR1_Y = $01
-LIBGFX_PAR1_TILE = $02
-LIBGFX_PAR1_SPRID = $03
-
-; Buffer read/write indexes
-LIBGFX_ZPR1_BUFWRITE = $05
-LIBGFX_ZPR1_BUFREAD = $06
-LIBGFX_ZPR1_LOCK = $07
-
-; PPU mirrors
-LIBGFX_ZPR1_PPUCTRL = $08
-
-
 .SEGMENT "PRG"
 
 libgfx_default_pal1: .BYTE $02, $38, $0F, $0F

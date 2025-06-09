@@ -1,0 +1,41 @@
+;----- lib zpg -----;
+TMP_U8_1             = $10
+TMP_U8_2             = $11
+TMP_U8_3             = $12
+TMP_U8_4             = $13
+TMP_U16_1            = $14
+TMP_U16_2            = $16
+TMP_U16_3            = $18
+TMP_U16_4            = $1A
+
+LIBFX164_PAR2_ADDR   = $00
+
+LIBGFX_PAR1_INDEX    = $00
+LIBGFX_PAR2_SRC      = $01
+LIBGFX_PAR2_JMPADDR  = $03
+LIBGFX_PAR1_X        = $05
+LIBGFX_PAR1_Y        = $06
+LIBGFX_PAR1_TILE     = $07
+LIBGFX_PAR1_SPRID    = $08
+
+;----- zpg dat -----;
+LIBGFX_ZPR1_BUFWRITE = $20
+LIBGFX_ZPR1_BUFREAD  = $21
+LIBGFX_ZPR1_LOCK     = $22
+LIBGFX_ZPR1_PPUCTRL  = $23
+LIBINPUT_STATES      = $24
+LIBINPUT_STATES_OLD  = $25
+LIBINPUT_STATES_P    = $26
+
+;----- aux zpg -----;
+TEST_NUMBER1_ADDR    = $30
+TEST_NUMBER2_ADDR    = $32
+TEST_RESULT_ADDR     = $34
+TEST_NUMBER_DEC      = $36
+TEST_NUMBER_INC      = $38
+TEST_NUMBER_SEL      = $3A
+TEST_OBJ1_X_SCR      = $3B
+TEST_OBJ1_Y_SCR      = $3C
+
+;----- lib ram -----;
+LIBGFX_CMD_BUF       = $0300

@@ -1,0 +1,129 @@
+.SEGMENT "PRG"
+
+_sign_lut:
+    .BYTE '+', '-'
+
+_hex_lut:
+    .BYTE '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+
+; A = number
+.PROC libprt_print_u8
+    TAY
+    AND #$0F
+    PHA
+
+    TYA
+    LSR
+    LSR 
+    LSR
+    LSR
+    AND #$0F
+    PHA
+
+    LIBGFX_PUSH8 $02
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A
+
+    RTS
+.ENDPROC
+
+; LIBFX164_PAR2_ADDR = address of the number
+.PROC libprt_print_fx164
+; load low into X, and high into Y
+    LDY #$00
+    LDA (LIBFX164_PAR2_ADDR), Y
+    TAX
+    LDY #$01
+    LDA (LIBFX164_PAR2_ADDR), Y
+    TAY
+
+; check sign and invert if negative
+    TAY
+    BMI @neg
+    JMP @pos
+@neg:
+    TXA
+    EOR #$FF
+    CLC
+    ADC #$01
+    TAX
+    TYA
+    EOR #$7F
+    ADC #$00
+    TAY
+@pos:
+
+; num[0..3] : F
+    TXA
+    AND #$0F
+    PHA
+
+; whole[0..3] : W[0]
+    TXA
+    LSR
+    LSR
+    LSR
+    LSR
+    AND #$0F
+    PHA
+
+; whole[4..7] : W[1]
+    TYA
+    AND #$0F
+    PHA
+
+; whole[8..10] : W[2]
+    TYA
+    LSR
+    LSR
+    LSR
+    LSR
+    AND #$07
+    PHA
+
+; push sign
+    TYA 
+    ROL
+    LDA #$00
+    ADC #$00
+    PHA
+
+    LIBGFX_PUSH8 $06
+
+    PLA
+    TAX
+    LDA _sign_lut, X
+    LIBGFX_PUSH_A
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A 
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A
+
+    LIBGFX_PUSH8 '.'
+
+    PLA
+    TAX
+    LDA _hex_lut, X
+    LIBGFX_PUSH_A
+
+    RTS
+.ENDPROC

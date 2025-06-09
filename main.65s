@@ -1,15 +1,10 @@
+.INCLUDE "lib/mmap.65s"
 .INCLUDE "lib/lib_nes.65s"
 .INCLUDE "lib/lib_init.65s"
 .INCLUDE "lib/lib_gfx.65s"
 .INCLUDE "lib/lib_fx164.65s"
 .INCLUDE "lib/lib_input.65s"
-
-TEST_NUMBER1_ADDR = $20
-TEST_NUMBER2_ADDR = $22
-TEST_RESULT_ADDR = $24
-TEST_NUMBER_DEC = $26
-TEST_NUMBER_INC = $28
-TEST_NUMBER_SEL = $50
+.INCLUDE "lib/lib_prt.65s"
 
 .SEGMENT "PRG"
 
@@ -19,7 +14,14 @@ TEST_NUMBER_SEL = $50
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 1
         PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER1_ADDR
-        JSR libfx164_draw
+        JSR libprt_print_fx164
+
+        LIBGFX_PUSH8 $00
+        LIBGFX_PUSH8 $02
+        LIBGFX_PUSH_XY 10, 1
+        PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER1_ADDR
+        JSR libfx164_to_scr
+        JSR libprt_print_u8
 
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 3
@@ -29,7 +31,14 @@ TEST_NUMBER_SEL = $50
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 5
         PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER2_ADDR
-        JSR libfx164_draw
+        JSR libprt_print_fx164
+
+        LIBGFX_PUSH8 $00
+        LIBGFX_PUSH8 $02
+        LIBGFX_PUSH_XY 10, 5
+        PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER2_ADDR
+        JSR libfx164_to_scr
+        JSR libprt_print_u8
 
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 7
@@ -39,7 +48,7 @@ TEST_NUMBER_SEL = $50
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 9
         PARAM2 LIBFX164_PAR2_ADDR, TEST_RESULT_ADDR
-        JSR libfx164_draw
+        JSR libprt_print_fx164
     LIBGFX_END_TILEMAP
 
     RTS
@@ -60,11 +69,11 @@ _START:
     JSR libinput_init
     JSR libgfx_init
 
-    LIBFX164_SET TEST_NUMBER_INC, 0, $0, $1
-    LIBFX164_SET TEST_NUMBER_DEC, 1, $0, $1
+    LIBFX164_SET TEST_NUMBER_INC, 0, $0, $F
+    LIBFX164_SET TEST_NUMBER_DEC, 1, $0, $F
 
-    LIBFX164_SET TEST_NUMBER1_ADDR, 0, $66, $6
-    LIBFX164_SET TEST_NUMBER2_ADDR, 1, $62, $1
+    LIBFX164_SET TEST_NUMBER1_ADDR, 0, $00, $C
+    LIBFX164_SET TEST_NUMBER2_ADDR, 1, $145, $C
     
     LIBGFX_BEGIN_TILEMAP
         LIBGFX_PUSH8 $00
@@ -90,13 +99,30 @@ _START:
 
         LIBGFX_WAIT_VBLANK
 
+        ; convert numbers to scr position
+        PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER1_ADDR
+        JSR libfx164_to_scr
+        STA TEST_OBJ1_X_SCR
+
+        PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER2_ADDR
+        JSR libfx164_to_scr
+        STA TEST_OBJ1_Y_SCR
+
+        LDA TEST_OBJ1_X_SCR
+        STA LIBGFX_PAR1_X
+        LDA TEST_OBJ1_Y_SCR
+        STA LIBGFX_PAR1_Y
+        PARAM LIBGFX_PAR1_TILE, $01
+        PARAM LIBGFX_PAR1_SPRID, 1
+        JSR libgfx_put_sprite
+
         PARAM LIBGFX_PAR1_X, 8
         LDA TEST_NUMBER_SEL
-        ASL 
-        ASL 
-        ASL 
-        ASL 
-        ASL 
+        ASL
+        ASL
+        ASL
+        ASL
+        ASL
         ADC #$08
         STA LIBGFX_PAR1_Y
         PARAM LIBGFX_PAR1_TILE, '>'
