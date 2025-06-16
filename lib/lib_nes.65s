@@ -29,15 +29,15 @@ CTRLREAD_2 = $4017
 
 OAM       = $0200
 
-.MACRO PARAM reg, value
-    LDA #value
+.MACRO PARAM1 reg, value
+    LDA #(value)
     STA reg
 .ENDMACRO
 
 .MACRO PARAM2 reg, value
-    LDA #<value
+    LDA #<(value)
     STA reg
-    LDA #>value
+    LDA #>(value)
     STA reg+1
 .ENDMACRO
 

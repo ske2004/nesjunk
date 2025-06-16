@@ -5,10 +5,26 @@
 .INCLUDE "lib/lib_fx164.65s"
 .INCLUDE "lib/lib_input.65s"
 .INCLUDE "lib/lib_prt.65s"
+.INCLUDE "lib/lib_coll.65s"
+.INCLUDE "strings.65s"
 
 .SEGMENT "PRG"
 
+TEST_TILE_X = 20
+TEST_TILE_Y = 10
+
 .PROC redraw_tilemap
+    PARAM2 LIBCOLL_PAR2_DOT, TEST_COLL_OBJ
+    PARAM1 LIBCOLL_PAR1_X, TEST_TILE_X
+    PARAM1 LIBCOLL_PAR1_Y, TEST_TILE_Y
+    LDA #0
+    STA TEST_HIT_RESULT
+    JSR libcoll_dot_in_tile
+    BNE @no_hit_test
+    LDA #1
+    STA TEST_HIT_RESULT
+    @no_hit_test:
+
     LIBGFX_BEGIN_TILEMAP
         LIBGFX_PUSH8 $00
         LIBGFX_PUSH8 $02
@@ -16,17 +32,17 @@
         PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER1_ADDR
         JSR libprt_print_fx164
 
-        LIBGFX_PUSH8 $00
+        LIBGFX_PUSH8 $02
+        LIBGFX_PUSH_XY 3, 1
+        PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER1_ADDR
+        JSR libprt_print_fx164
+
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 10, 1
         PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER1_ADDR
         JSR libfx164_to_scr
         JSR libprt_print_u8
 
-        LIBGFX_PUSH8 $02
-        LIBGFX_PUSH_XY 3, 3
-        LIBGFX_PUSH8 $01
-        LIBGFX_PUSH8 '+'
 
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 5
@@ -41,14 +57,35 @@
         JSR libprt_print_u8
 
         LIBGFX_PUSH8 $02
-        LIBGFX_PUSH_XY 3, 7
+        LIBGFX_PUSH_XY TEST_TILE_X, TEST_TILE_Y
         LIBGFX_PUSH8 $01
-        LIBGFX_PUSH8 '='
+        LIBGFX_PUSH8 $FF
 
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 9
         PARAM2 LIBFX164_PAR2_ADDR, TEST_RESULT_ADDR
         JSR libprt_print_fx164
+
+        LDA TEST_HIT_RESULT
+        CMP #1
+        BEQ @on_hit
+        BNE @no_hit
+        @on_hit: 
+            LIBGFX_PUSH8 $00
+            LIBGFX_PUSH8 $02
+            LIBGFX_PUSH_XY 3, 13
+            PARAM2 LIBGFX_PAR2_SRC, STR_HIT_DAT
+            LDA #STR_HIT_LEN
+            JSR libgfx_push_str
+            JMP @end
+        @no_hit: 
+            LIBGFX_PUSH8 $00
+            LIBGFX_PUSH8 $02
+            LIBGFX_PUSH_XY 3, 13
+            PARAM2 LIBGFX_PAR2_SRC, STR_NO_HIT_DAT
+            LDA #STR_NO_HIT_LEN
+            JSR libgfx_push_str
+        @end:
     LIBGFX_END_TILEMAP
 
     RTS
@@ -69,8 +106,8 @@ _START:
     JSR libinput_init
     JSR libgfx_init
 
-    LIBFX164_SET TEST_NUMBER_INC, 0, $0, $F
-    LIBFX164_SET TEST_NUMBER_DEC, 1, $0, $F
+    LIBFX164_SET TEST_NUMBER_INC, 0, $2, $0
+    LIBFX164_SET TEST_NUMBER_DEC, 1, $2, $0
 
     LIBFX164_SET TEST_NUMBER1_ADDR, 0, $00, $C
     LIBFX164_SET TEST_NUMBER2_ADDR, 1, $145, $C
@@ -79,16 +116,26 @@ _START:
         LIBGFX_PUSH8 $00
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 15
-        LIBGFX_PUSH_STR "Select........Cycle"
+            
+        ; NOTE: PARAM call has to be before LDA because it overwrites (maybe using registers is a bad idea)
+        PARAM2 LIBGFX_PAR2_SRC, STR_INF1_DAT
+        LDA #STR_INF1_LEN
+        JSR libgfx_push_str
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 17
-        LIBGFX_PUSH_STR "Start.........Clear"
+        PARAM2 LIBGFX_PAR2_SRC, STR_INF2_DAT
+        LDA #STR_INF2_LEN
+        JSR libgfx_push_str
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 19
-        LIBGFX_PUSH_STR "A/Up/Right....Add"
+        PARAM2 LIBGFX_PAR2_SRC, STR_INF3_DAT
+        LDA #STR_INF3_LEN
+        JSR libgfx_push_str
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 21
-        LIBGFX_PUSH_STR "B/Down/Left...Sub"
+        PARAM2 LIBGFX_PAR2_SRC, STR_INF4_DAT
+        LDA #STR_INF4_LEN
+        JSR libgfx_push_str
     LIBGFX_END_TILEMAP
 
     JSR recalculate_result
@@ -100,23 +147,32 @@ _START:
         LIBGFX_WAIT_VBLANK
 
         ; convert numbers to scr position
-        PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER1_ADDR
+        PARAM2 LIBFX164_PAR2_ADDR, (TEST_COLL_OBJ+LibColl_Dot::px)
         JSR libfx164_to_scr
+        CLC
+        SBC #4
         STA TEST_OBJ1_X_SCR
 
-        PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER2_ADDR
+        PARAM2 LIBFX164_PAR2_ADDR, (TEST_COLL_OBJ+LibColl_Dot::py)
         JSR libfx164_to_scr
+        CLC
+        SBC #4
         STA TEST_OBJ1_Y_SCR
 
         LDA TEST_OBJ1_X_SCR
         STA LIBGFX_PAR1_X
         LDA TEST_OBJ1_Y_SCR
         STA LIBGFX_PAR1_Y
-        PARAM LIBGFX_PAR1_TILE, $01
-        PARAM LIBGFX_PAR1_SPRID, 1
+        
+        CLC
+        LDA TEST_COLL_OBJ+LibColl_Dot::dir
+        ADC #14 ; tile start of direction dots
+
+        STA LIBGFX_PAR1_TILE
+        PARAM1 LIBGFX_PAR1_SPRID, 1
         JSR libgfx_put_sprite
 
-        PARAM LIBGFX_PAR1_X, 8
+        PARAM1 LIBGFX_PAR1_X, 8
         LDA TEST_NUMBER_SEL
         ASL
         ASL
@@ -125,8 +181,8 @@ _START:
         ASL
         ADC #$08
         STA LIBGFX_PAR1_Y
-        PARAM LIBGFX_PAR1_TILE, '>'
-        PARAM LIBGFX_PAR1_SPRID, 0
+        PARAM1 LIBGFX_PAR1_TILE, '>'
+        PARAM1 LIBGFX_PAR1_SPRID, 0
         JSR libgfx_put_sprite
 
         LIBINPUT_JMP_IF_PRESSED LIBINPUT_BTN::AA
@@ -157,9 +213,13 @@ _START:
         @add:
             LDA TEST_NUMBER_SEL
             BNE @add_2
+                LDA #LibColl_Dir::RIGHT
+                STA TEST_COLL_OBJ+LibColl_Dot::dir
                 LIBFX164_ADD TEST_NUMBER1_ADDR, TEST_NUMBER_INC
                 JMP @add_end
             @add_2:
+                LDA #LibColl_Dir::DOWN
+                STA TEST_COLL_OBJ+LibColl_Dot::dir
                 LIBFX164_ADD TEST_NUMBER2_ADDR, TEST_NUMBER_INC
             @add_end:
             JSR recalculate_result
@@ -169,9 +229,13 @@ _START:
         @sub:
             LDA TEST_NUMBER_SEL
             BNE @sub_2
+                LDA #LibColl_Dir::LEFT
+                STA TEST_COLL_OBJ+LibColl_Dot::dir
                 LIBFX164_ADD TEST_NUMBER1_ADDR, TEST_NUMBER_DEC
                 JMP @sub_end
             @sub_2:
+                LDA #LibColl_Dir::UP
+                STA TEST_COLL_OBJ+LibColl_Dot::dir
                 LIBFX164_ADD TEST_NUMBER2_ADDR, TEST_NUMBER_DEC
             @sub_end:
             JSR recalculate_result

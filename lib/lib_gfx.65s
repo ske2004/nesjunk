@@ -9,7 +9,7 @@
 .SEGMENT "PRG"
 
 libgfx_default_pal1: .BYTE $02, $38, $0F, $0F
-libgfx_default_pal2: .BYTE $02, $31, $0F, $0F
+libgfx_default_pal2: .BYTE $02, $31, $26, $20
 
 .MACRO LIBGFX_WAIT_VBLANK
     @wait_vblank:
@@ -79,17 +79,23 @@ libgfx_default_pal2: .BYTE $02, $31, $0F, $0F
     LIBGFX_PUSH_A
 .ENDMACRO
 
-.MACRO LIBGFX_PUSH_STR String
-    LDA #(.strlen(String))
-    LIBGFX_PUSH_A 
+; A = length
+; LIBGFX_PAR2_SRC = addr
+.PROC libgfx_push_str
+    LIBGFX_PUSH_A
+    STA TMP_U8_1
     LDX LIBGFX_ZPR1_BUFWRITE
-    .REPEAT .strlen(String), I
-        LDA #(.strat(String, I))
+    LDY #0
+    @loop:
+        LDA (LIBGFX_PAR2_SRC), Y
         STA LIBGFX_CMD_BUF, X
         INX
-    .ENDREPEAT
+        INY
+        DEC TMP_U8_1
+        BNE @loop
     STX LIBGFX_ZPR1_BUFWRITE
-.ENDMACRO
+    RTS
+.ENDPROC
 
 .MACRO LIBGFX_PUSH_XY px, py 
     LIBGFX_PUSH16 ($2000+px+py*32)
@@ -194,11 +200,11 @@ libgfx_default_pal2: .BYTE $02, $31, $0F, $0F
 
 .PROC libgfx_init
 ; Set default palette
-    PARAM LIBGFX_PAR1_INDEX, 0
+    PARAM1 LIBGFX_PAR1_INDEX, 0
     PARAM2 LIBGFX_PAR2_SRC, libgfx_default_pal1
     JSR libgfx_set_pal
 
-    PARAM LIBGFX_PAR1_INDEX, 4
+    PARAM1 LIBGFX_PAR1_INDEX, 4
     PARAM2 LIBGFX_PAR2_SRC, libgfx_default_pal2
     JSR libgfx_set_pal
 

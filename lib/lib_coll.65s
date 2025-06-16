@@ -1,0 +1,46 @@
+.ENUM LibColl_Dir
+    LEFT  = 0
+    RIGHT = 1
+    UP    = 2
+    DOWN  = 3
+.ENDENUM
+
+.STRUCT LibColl_Dot
+    dir .BYTE
+    px  .TAG Libfx164_Val
+    py  .TAG Libfx164_Val
+.ENDSTRUCT
+
+; LIBCOLL_PAR2_DOT = dot
+; LIBCOLL_PAR1_X   = tile x
+; LIBCOLL_PAR1_Y   = tile y
+.PROC libcoll_dot_in_tile
+    X_FXP = TMP_U16_1
+    Y_FXP = TMP_U16_2
+
+    LDY #LibColl_Dot::px
+    LDA (LIBCOLL_PAR2_DOT), Y
+    STA X_FXP
+    LDY #LibColl_Dot::px+1
+    LDA (LIBCOLL_PAR2_DOT), Y
+    STA X_FXP+1
+
+    LDY #LibColl_Dot::py
+    LDA (LIBCOLL_PAR2_DOT), Y
+    STA Y_FXP
+    LDY #LibColl_Dot::py+1
+    LDA (LIBCOLL_PAR2_DOT), Y
+    STA Y_FXP+1
+
+    LIBFX164_DIV128 X_FXP
+    LIBFX164_DIV128 Y_FXP
+
+@cmp:
+    LDA LIBCOLL_PAR1_X
+    CMP X_FXP
+    BNE @end
+    LDA LIBCOLL_PAR1_Y
+    CMP Y_FXP
+@end:
+    RTS
+.ENDPROC

@@ -1,0 +1,14 @@
+fn addStr(name, val: str) {
+    printf("STR_%s_DAT: .BYTE %v\n", name, val)
+    printf("STR_%s_LEN= %d\n\n", name, len(val))
+}
+
+fn main() {
+    addStr("HIT", "Hit!  ")
+    addStr("NO_HIT", "No hit")
+    addStr("INF1", "Select........Cycle")
+    addStr("INF2", "Start.........Clear")
+    addStr("INF3", "A/Up/Right....Add")
+    addStr("INF4", "B/Down/Left...Sub")
+}
+

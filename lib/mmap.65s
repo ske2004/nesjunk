@@ -9,6 +9,7 @@ TMP_U16_3            = $18
 TMP_U16_4            = $1A
 
 LIBFX164_PAR2_ADDR   = $00
+LIBFX164_PAR2_ADDR2  = $02
 
 LIBGFX_PAR1_INDEX    = $00
 LIBGFX_PAR2_SRC      = $01
@@ -17,6 +18,10 @@ LIBGFX_PAR1_X        = $05
 LIBGFX_PAR1_Y        = $06
 LIBGFX_PAR1_TILE     = $07
 LIBGFX_PAR1_SPRID    = $08
+
+LIBCOLL_PAR2_DOT     = $00
+LIBCOLL_PAR1_X       = $02
+LIBCOLL_PAR1_Y       = $03
 
 ;----- zpg dat -----;
 LIBGFX_ZPR1_BUFWRITE = $20
@@ -28,14 +33,16 @@ LIBINPUT_STATES_OLD  = $25
 LIBINPUT_STATES_P    = $26
 
 ;----- aux zpg -----;
-TEST_NUMBER1_ADDR    = $30
-TEST_NUMBER2_ADDR    = $32
-TEST_RESULT_ADDR     = $34
-TEST_NUMBER_DEC      = $36
-TEST_NUMBER_INC      = $38
-TEST_NUMBER_SEL      = $3A
-TEST_OBJ1_X_SCR      = $3B
-TEST_OBJ1_Y_SCR      = $3C
+TEST_COLL_OBJ        = $30 ; dir placeholder here
+TEST_NUMBER1_ADDR    = $30+1
+TEST_NUMBER2_ADDR    = $32+1
+TEST_RESULT_ADDR     = $34+1
+TEST_NUMBER_DEC      = $36+1
+TEST_NUMBER_INC      = $38+1
+TEST_NUMBER_SEL      = $3A+1
+TEST_OBJ1_X_SCR      = $3B+1
+TEST_OBJ1_Y_SCR      = $3C+1
+TEST_HIT_RESULT      = $3D+1
 
 ;----- lib ram -----;
 LIBGFX_CMD_BUF       = $0300

@@ -1,0 +1,18 @@
+STR_HIT_DAT: .BYTE "Hit!  "
+STR_HIT_LEN= 6
+
+STR_NO_HIT_DAT: .BYTE "No hit"
+STR_NO_HIT_LEN= 6
+
+STR_INF1_DAT: .BYTE "Select........Cycle"
+STR_INF1_LEN= 19
+
+STR_INF2_DAT: .BYTE "Start.........Clear"
+STR_INF2_LEN= 19
+
+STR_INF3_DAT: .BYTE "A/Up/Right....Add"
+STR_INF3_LEN= 17
+
+STR_INF4_DAT: .BYTE "B/Down/Left...Sub"
+STR_INF4_LEN= 17
+
