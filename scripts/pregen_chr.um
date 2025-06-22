@@ -1,7 +1,6 @@
-#include <stdint.h>
-#include <stdio.h>
+import "std.um"
 
-uint64_t font[256]= {
+font := [256]uint{
 0x0000000000000000,0x0000000000000000,
 0x000000FF00000000,0x000000FF00FF0000,//ÄÍ
 0x1818181818181818,0x6C6C6C6C6C6C6C6C,//³º
@@ -132,46 +131,52 @@ uint64_t font[256]= {
 0x001414141E15151E,0xFFFFFFFFFFFFFFFF,//þÿ
 };
 
-unsigned char reverse_bits(unsigned char c)
-{
-    unsigned char r = 0;
-    for (int i = 0; i < 8; i++) {
-        r = (r << 1) | (c & 1);
-        c >>= 1;
-    }
-    return r;
+var bitlut: [256]uint8
+
+fn doReverseBits(c: uint8): uint8 {
+  r := (c&1)<<7; c >>= 1
+  r |= (c&1)<<6; c >>= 1
+  r |= (c&1)<<5; c >>= 1
+  r |= (c&1)<<4; c >>= 1
+  r |= (c&1)<<3; c >>= 1
+  r |= (c&1)<<2; c >>= 1
+  r |= (c&1)<<1; c >>= 1
+  r |= (c&1)<<0; return r
 }
 
-int main()
-{
-    FILE *f = fopen("font8x8.chr", "wb");
-    FILE *f2 = fopen("icon.chr", "rb");
-    if (!f) {
-        printf("Failed to open font8x8.chr\n");
-        return 1;
-    }
-    if (!f2) {
-        printf("Failed to open icon.chr\n");
-        return 1;
-    }
+fn populatelut() {
+  for i:=0; i<256; i++ {
+    bitlut[i] = doReverseBits(i)
+  }
+}
 
-    uint8_t *font_u8 = (uint8_t*)font;
+fn main() {
+  populatelut()
 
-    for (int i = 0; i < 256; i++) {
-        if (i >= 14 && i < 18) {
-            for (int j = 0; j < 16; j++) {
-                fputc(fgetc(f2), f);
-            }
-        } else {
-            for (int j = 0; j < 8; j++) {
-                fputc(reverse_bits(font_u8[i*8+j]), f);
-            }
-            for (int j = 0; j < 8; j++) {
-                fputc(0, f);
-            }
-        }
+  iconf, err1 := std::fopen("icon.chr", "rb")
+  outf, err2 := std::fopen("out.chr", "wb")
+  std::exitif(err1)
+  std::exitif(err2)
+  
+  fontu8 := std::tobytes(font)
+
+  var byte: uint8
+  for i:=0; i<256; i++ {
+    if i>=14 && i<=18 {
+      for j:=0; j<16; j++ {
+        std::fread(iconf, &byte)
+        std::fwrite(outf, byte)
+      }
+    } else {
+      for j:=0; j<8; j++ {
+        std::fwrite(outf, doReverseBits(fontu8[i*8+j]))
+      }
+      for j:=0; j<8; j++ {
+        std::fwrite(outf, uint8(0))
+      }
     }
+  }
 
-    fclose(f);
-    return 0;
+  std::fclose(outf)
+  std::fclose(iconf)
 }

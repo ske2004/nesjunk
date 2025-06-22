@@ -59,6 +59,13 @@
     LDA TMP_U16_1+1
 .ENDMACRO
 
+.MACRO LIBFX164_MUL2 addr
+    LDA addr
+    ASL
+    STA addr
+    ROL addr+1
+.ENDMACRO
+
 .MACRO LIBFX164_DIV2 addr
     LDA addr+1
     CMP #$80
@@ -95,6 +102,16 @@
     LIBFX164_DIV2 addr
     LIBFX164_DIV2 addr
     LIBFX164_DIV2 addr
+.ENDMACRO
+
+.MACRO LIBFX164_MUL128 addr
+    LIBFX164_MUL2 addr
+    LIBFX164_MUL2 addr
+    LIBFX164_MUL2 addr
+    LIBFX164_MUL2 addr
+    LIBFX164_MUL2 addr
+    LIBFX164_MUL2 addr
+    LIBFX164_MUL2 addr
 .ENDMACRO
 
 ; LIBFX164_PAR2_ADDR = address of the number

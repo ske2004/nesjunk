@@ -77,6 +77,12 @@ TEST_TILE_Y = 10
             PARAM2 LIBGFX_PAR2_SRC, STR_HIT_DAT
             LDA #STR_HIT_LEN
             JSR libgfx_push_str
+
+            PARAM2 LIBCOLL_PAR2_DOT, TEST_COLL_OBJ
+            PARAM1 LIBCOLL_PAR1_X, TEST_TILE_X
+            PARAM1 LIBCOLL_PAR1_Y, TEST_TILE_Y
+            JSR libcoll_dot_vs_tile
+
             JMP @end
         @no_hit: 
             LIBGFX_PUSH8 $00
@@ -262,4 +268,4 @@ _IRQ: RTI
 
 .SEGMENT "CHR"
 
-.INCBIN "font8x8.chr"
+.INCBIN "out.chr"

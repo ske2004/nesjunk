@@ -11,21 +11,21 @@
     py  .TAG Libfx164_Val
 .ENDSTRUCT
 
-; LIBCOLL_PAR2_DOT = dot
+; LIBCOLL_PAR2_DOT = const &dot
 ; LIBCOLL_PAR1_X   = tile x
 ; LIBCOLL_PAR1_Y   = tile y
 .PROC libcoll_dot_in_tile
     X_FXP = TMP_U16_1
     Y_FXP = TMP_U16_2
 
-    LDY #LibColl_Dot::px
+    LDY #LibColl_Dot::px+0
     LDA (LIBCOLL_PAR2_DOT), Y
     STA X_FXP
     LDY #LibColl_Dot::px+1
     LDA (LIBCOLL_PAR2_DOT), Y
     STA X_FXP+1
 
-    LDY #LibColl_Dot::py
+    LDY #LibColl_Dot::py+0
     LDA (LIBCOLL_PAR2_DOT), Y
     STA Y_FXP
     LDY #LibColl_Dot::py+1
@@ -43,4 +43,74 @@
     CMP Y_FXP
 @end:
     RTS
+.ENDPROC
+
+libcoll_unit: .BYTE $01, $00
+
+; LIBCOLL_PAR2_DOT = &dot
+; LIBCOLL_PAR1_X   = tile x
+; LIBCOLL_PAR1_Y   = tile y
+.PROC libcoll_dot_vs_tile
+    X_FXP = TMP_U16_1
+    Y_FXP = TMP_U16_2
+
+    LDY #LibColl_Dot::px+0
+    LDA (LIBCOLL_PAR2_DOT), Y
+    STA X_FXP
+    LDY #LibColl_Dot::px+1
+    LDA (LIBCOLL_PAR2_DOT), Y
+    STA X_FXP+1
+
+    LDY #LibColl_Dot::py+0
+    LDA (LIBCOLL_PAR2_DOT), Y
+    STA Y_FXP
+    LDY #LibColl_Dot::py+1
+    LDA (LIBCOLL_PAR2_DOT), Y
+    STA Y_FXP+1
+
+    LIBFX164_DIV128 X_FXP
+    LIBFX164_DIV128 Y_FXP
+
+    LDY #LibColl_Dot::dir
+    LDA (LIBCOLL_PAR2_DOT), Y
+    CMP #0
+    BEQ @left
+    LDY #LibColl_Dot::dir
+    LDA (LIBCOLL_PAR2_DOT), Y
+    CMP #1
+    BEQ @set_x
+    LDY #LibColl_Dot::dir
+    LDA (LIBCOLL_PAR2_DOT), Y
+    CMP #2
+    BEQ @up
+    LDY #LibColl_Dot::dir
+    LDA (LIBCOLL_PAR2_DOT), Y
+    CMP #3
+    BEQ @set_y
+    @left:
+        LIBFX164_ADD X_FXP, libcoll_unit
+        JMP @set_x
+    @up:
+        LIBFX164_ADD Y_FXP, libcoll_unit
+        JMP @set_y
+
+    @set_x:
+        LIBFX164_MUL128 X_FXP
+        LDY #LibColl_Dot::px+0
+        LDA X_FXP+0
+        STA (LIBCOLL_PAR2_DOT), Y
+        LDY #LibColl_Dot::px+1
+        LDA X_FXP+1
+        STA (LIBCOLL_PAR2_DOT), Y
+        RTS
+    @set_y:
+        LIBFX164_MUL128 Y_FXP
+        LDY #LibColl_Dot::py+0
+        LDA Y_FXP+0
+        STA (LIBCOLL_PAR2_DOT), Y
+        LDY #LibColl_Dot::py+1
+        LDA Y_FXP+1
+        STA (LIBCOLL_PAR2_DOT), Y
+        RTS
+
 .ENDPROC
