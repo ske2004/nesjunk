@@ -43,7 +43,6 @@ TEST_TILE_Y = 10
         JSR libfx164_to_scr
         JSR libprt_print_u8
 
-
         LIBGFX_PUSH8 $02
         LIBGFX_PUSH_XY 3, 5
         PARAM2 LIBFX164_PAR2_ADDR, TEST_NUMBER2_ADDR
@@ -108,7 +107,6 @@ TEST_TILE_Y = 10
 _RESET:
     LIBINIT_INIT
 _START:
-
     JSR libinput_init
     JSR libgfx_init
 

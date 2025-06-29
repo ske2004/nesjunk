@@ -1,5 +1,3 @@
 @echo off
-umka scripts/pregen_chr.um
-umka scripts/pregen_strings.um>strings.65s
-ca65 -g main.65s
-ld65 --dbgfile main.dbg -C main.cfg -o main.nes main.o
+if not exist bin mkdir bin
+ca65 -g roms/test_platformer/rom.65s && ld65 --dbgfile bin/test_platformer.dbg -C roms/test_platformer/rom.cfg -o bin/test_platformer.nes roms/test_platformer/rom.o
