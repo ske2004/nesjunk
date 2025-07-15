@@ -48,6 +48,7 @@ NES_ApuDmc        = $4010
 .SEGMENT "ZPG"
 ZeropageRegs:       .RES 16
 NMI_TraceY:         .RES 1
+ScreenID:           .RES 1
 
 .SEGMENT "PRG"
 
@@ -127,43 +128,112 @@ NMI_TraceY:         .RES 1
   ASL A
   ASL A
   STA _MetatileOffs
-
-  ; get Y tile offset -> _SubTileY
-  LDA NMI_TraceY
-  AND #%00000001
-  ASL A
-  STA _SubTile
-
-  ; line draw loop
+  
+;----------------------------
   LDY #0
-@loop:
-  ; get tile index -> _TileId
-  TYA 
-  LSR
-  CLC
-  ADC _MetatileOffs
+@loop_lo:
+  LDX _MetatileOffs
+  LDA DATA_scrval, X
+  ASL
   TAX
-  LDA map_0, X
-  ASL
-  ASL
-  ADC _SubTile
 
+  LDA DATA_metatiles_lo+0, X
+  STA NES_PpuData
+  LDA DATA_metatiles_lo+1, X
   STA NES_PpuData
 
-  LDA _SubTile
-  EOR #%00000001
-  STA _SubTile
-
+  INC _MetatileOffs
   INY
-  CPY #$20
-  BNE @loop
-
+  CPY #$10
+  BNE @loop_lo
   INC NMI_TraceY
+;----------------------------
+  LDA _MetatileOffs
+  CLC
+  SBC #15
+  STA _MetatileOffs
+
+  LDY #0
+@loop_hi:
+  LDX _MetatileOffs
+  LDA DATA_scrval, X
+  ASL
+  TAX
+
+  LDA DATA_metatiles_hi+0, X
+  STA NES_PpuData
+  LDA DATA_metatiles_hi+1, X
+  STA NES_PpuData
+
+  INC _MetatileOffs
+  INY
+  CPY #$10
+  BNE @loop_hi
+  INC NMI_TraceY
+  RTS
+.ENDPROC
+
+; A = Pal ID
+; PPUADDR must be set at pallete address
+.PROC _LoadPal
+  ; * 4
+  ASL
+  ASL
+  TAX
+  LDA DATA_pal, X
+  STA NES_PpuData
+  INX
+  LDA DATA_pal, X
+  STA NES_PpuData
+  INX
+  LDA DATA_pal, X
+  STA NES_PpuData
+  INX
+  LDA DATA_pal, X
+  STA NES_PpuData
+  RTS
+.ENDPROC
+
+; A = ScrPal ID
+.PROC _LoadScreenPal
+  AddrTemp := $00
+  ; * 8
+  ASL
+  ASL
+  ASL
+  STA AddrTemp
+
+  PPU_SetAddr NES_PpuPalBkg0
+
+  .REPEAT 8, I
+    LDX AddrTemp
+    LDA DATA_scrpal+I, X
+    JSR _LoadPal
+  .ENDREPEAT
+
+  RTS
+.ENDPROC
+
+; A = screen ID
+.PROC _LoadScreen
+  STA ScreenID
+
+  ; Load scrpal ID 
+  ASL
+  CLC
+  ADC #1
+  JSR _LoadScreenPal
+
   RTS
 .ENDPROC
 
 .MACRO NMI_DrawLine
   JSR _NMI_DrawLine
+.ENDMACRO
+
+.MACRO LoadScreen id
+  LDA #id
+  JSR _LoadScreen
 .ENDMACRO
 
 _RESET:
@@ -216,10 +286,7 @@ _RESET:
   VBlank_Wait
   
 _USERINIT:
-  PPU_SetPal NES_PpuPalBkg0, pal_0
-  PPU_SetPal NES_PpuPalBkg1, pal_0
-  PPU_SetPal NES_PpuPalBkg2, pal_0
-  PPU_SetPal NES_PpuPalBkg3, pal_0
+  LoadScreen 0
 
 ; enable drawing 
   ORA #%00011110
@@ -260,33 +327,5 @@ _NMI:
 _IRQ:
   RTI
 
-pal_0:
-.BYTE $0F, $20, $10, $00
-
-map_0:
-; screen=16x15
-.BYTE 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-.BYTE 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-.BYTE 0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0
-.BYTE 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-.BYTE 0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0
-.BYTE 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-.BYTE 0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0
-.BYTE 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-.BYTE 0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-.BYTE 0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0
-.BYTE 0,0,0,1,0,0,0,0,2,2,2,0,0,0,0,0
-.BYTE 0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0
-.BYTE 0,0,0,0,0,1,0,1,1,1,1,1,0,0,0,0
-.BYTE 0,0,3,0,0,0,0,1,1,1,1,1,0,0,0,0
-.BYTE 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-
-; y to offset
-TLB_Y_lo:
-.REPEAT 30, YPos
-  .BYTE <(YPos*32)
-.ENDREPEAT
-TLB_Y_hi:
-.REPEAT 30, YPos
-  .BYTE >(YPos*32)
-.ENDREPEAT
+.INCLUDE "data.65s"
+.INCLUDE "tlb.65s"

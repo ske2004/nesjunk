@@ -1,0 +1,9 @@
+; y to offset
+TLB_Y_lo:
+.REPEAT 30, YPos
+  .BYTE <(YPos*32)
+.ENDREPEAT
+TLB_Y_hi:
+.REPEAT 30, YPos
+  .BYTE >(YPos*32)
+.ENDREPEAT
