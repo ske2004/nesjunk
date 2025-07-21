@@ -3,13 +3,11 @@ DATA_metatiles_lo:
 @_00_void:   .BYTE $00, $00
 @_01_block:  .BYTE $04, $05
 @_02_spike:  .BYTE $08, $09
-@_03_player: .BYTE $0C, $0D
 DATA_metatiles_hi:
 ;                  chr 
 @_00_void:   .BYTE $00, $00
 @_01_block:  .BYTE $06, $07
 @_02_spike:  .BYTE $0A, $0B
-@_03_player: .BYTE $0E, $0F
 
 DATA_scrval:
 ; 16x15 + 1 dummy
@@ -26,7 +24,7 @@ DATA_scrval:
 .BYTE 0,0,0,1,0,0,0,0,2,2,2,0,0,0,0,0
 .BYTE 0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0
 .BYTE 0,0,0,0,0,1,0,1,1,1,1,1,0,0,0,0
-.BYTE 0,0,3,0,0,0,0,1,1,1,1,1,0,0,0,0
+.BYTE 0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0
 .BYTE 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
 .BYTE 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
@@ -37,6 +35,14 @@ DATA_scrpal:
 ; each of the 8 palettes
 @_00_default: .BYTE $00, $00, $00, $00, $00, $00, $00, $00
 
-DATA_scrdat:
-;           scrval pal
-@_00: .BYTE $00,   $00
+DATA_scrdat_scrval:
+@_00: .BYTE $00
+
+DATA_scrdat_scrpal:
+@_00: .BYTE $00
+
+DATA_scrdat_playerSpawnX:
+@_00: .BYTE $20
+
+DATA_scrdat_playerSpawnY:
+@_00: .BYTE $20

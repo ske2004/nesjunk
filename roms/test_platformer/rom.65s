@@ -53,6 +53,8 @@ ZeropageRegs:       .RES 16
 NMI_TraceY:         .RES 1
 ScreenID:           .RES 1
 DrawingStage:       .RES 1
+Player_X:           .RES 2
+Player_Y:           .RES 2
 
 .SEGMENT "RAM"
 OAM_Data: .RES 256
@@ -67,6 +69,20 @@ OAM_Data: .RES 256
   LDA addr1+1
   ADC addr2+1
   STA addr1+1
+.ENDMACRO
+
+.MACRO U16_Sub_U16 addr1, addr2, addr3
+  SEC
+  LDA addr1
+  SBC addr2
+  STA addr3
+  LDA addr1+1
+  SBC addr2+1
+  STA addr3+1
+.ENDMACRO
+
+.MACRO FX8_ToScreen addr
+  LDA addr+1
 .ENDMACRO
 
 .MACRO VBlank_Wait
@@ -224,13 +240,23 @@ OAM_Data: .RES 256
 
 ; A = screen ID
 .PROC _LoadScreen
-  STA ScreenID
+  TAX
+  STX ScreenID
 
   ; Load scrpal ID 
-  ASL
-  CLC
-  ADC #1
+  LDA DATA_scrdat_scrpal, X
   JSR _LoadScreenPal
+
+  ; Load player position
+  LDA #$00
+  STA Player_X+0
+  STA Player_Y+0
+  ; hi bytes
+  LDX ScreenID
+  LDA DATA_scrdat_playerSpawnX, X
+  STA Player_X+1
+  LDA DATA_scrdat_playerSpawnY, X
+  STA Player_Y+1
 
   RTS
 .ENDPROC
@@ -296,11 +322,11 @@ _RESET:
 _USERINIT:
   LoadScreen 0
 
-; enable drawing 
+  ; enable drawing 
   ORA #%00011110
   STA NES_PpuMask
 
-; enable NMI 
+  ; enable NMI 
   LDA #%10000000
   STA NES_PpuCtrl
 
@@ -313,6 +339,51 @@ _LOOP:
 .ENDPROC
 
 .PROC Proc_DS_OAM
+  FX8_ToScreen Player_X
+  STA OAM_Data+3
+  FX8_ToScreen Player_Y
+  STA OAM_Data+0
+  LDA #$0C
+  STA OAM_Data+1
+  LDA #$00
+  STA OAM_Data+2
+
+  FX8_ToScreen Player_X
+  CLC
+  ADC #8
+  STA OAM_Data+4*1+3
+  FX8_ToScreen Player_Y
+  STA OAM_Data+4*1+0
+  LDA #$0D
+  STA OAM_Data+4*1+1
+  LDA #$00
+  STA OAM_Data+4*1+2
+
+  FX8_ToScreen Player_X
+  STA OAM_Data+4*2+3
+  FX8_ToScreen Player_Y
+  CLC
+  ADC #8
+  STA OAM_Data+4*2+0
+  LDA #$0E
+  STA OAM_Data+4*2+1
+  LDA #$00
+  STA OAM_Data+4*2+2
+
+  FX8_ToScreen Player_X
+  CLC
+  ADC #8
+  STA OAM_Data+4*3+3
+  FX8_ToScreen Player_Y
+  CLC
+  ADC #8
+  STA OAM_Data+4*3+0
+  LDA #$0F
+  STA OAM_Data+4*3+1
+  LDA #$00
+  STA OAM_Data+4*3+2
+
+  ; do the OAMDMA!
   LDA #>OAM_Data
   STA NES_PpuOAMDMA
   JMP _NMI_END
