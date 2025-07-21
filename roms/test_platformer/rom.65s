@@ -11,7 +11,7 @@ NES_PpuStatus     = $2002
 NES_PpuScroll     = $2005
 NES_PpuAddr       = $2006
 NES_PpuData       = $2007
-NES_PpuOamDma     = $4014
+NES_PpuOAMDMA     = $4014
 
 NES_PpuPalBkg0    = $3F00
 NES_PpuPalBkg1    = $3F04
@@ -29,6 +29,9 @@ NES_PpuBkg3       = $2C00
 
 NES_ApuFrame      = $4017
 NES_ApuDmc        = $4010
+
+dsTILEMAP         = 0
+dsOAM             = 1
 
 .SEGMENT "HEADER"
 .BYTE "NES", $1A
@@ -49,6 +52,10 @@ NES_ApuDmc        = $4010
 ZeropageRegs:       .RES 16
 NMI_TraceY:         .RES 1
 ScreenID:           .RES 1
+DrawingStage:       .RES 1
+
+.SEGMENT "RAM"
+OAM_Data: .RES 256
 
 .SEGMENT "PRG"
 
@@ -98,8 +105,9 @@ ScreenID:           .RES 1
   LDA NMI_TraceY
   CMP #30
   BNE :+
-  LDA #0
-  STA NMI_TraceY
+  LDA #dsOAM
+  STA DrawingStage
+  RTS
 
   ; Load nametable
 : LDA #<NES_PpuBkg0
@@ -299,7 +307,25 @@ _USERINIT:
 _LOOP:
   JMP _LOOP
 
+.PROC Proc_DS_Line
+  NMI_DrawLine
+  JMP _NMI_END
+.ENDPROC
+
+.PROC Proc_DS_OAM
+  LDA #>OAM_Data
+  STA NES_PpuOAMDMA
+  JMP _NMI_END
+.ENDPROC
+
+LUT_DrawingStage_lo:
+.BYTE <(Proc_DS_Line-1), <(Proc_DS_OAM-1)
+
+LUT_DrawingStage_hi:
+.BYTE >(Proc_DS_Line-1), >(Proc_DS_OAM-1)
+
 _NMI:
+  ; save all registers
   PHA
   TXA
   PHA
@@ -309,14 +335,20 @@ _NMI:
   ; acknowledge
   LDA NES_PpuStatus
   LDA #$02
-  STA NES_PpuOamDma
 
-  NMI_DrawLine
-
+  ; select drawing stage
+  LDX DrawingStage
+  LDA LUT_DrawingStage_hi, X
+  PHA
+  LDA LUT_DrawingStage_lo, X
+  PHA
+  RTS
+_NMI_END:
   LDA #$00
   STA NES_PpuScroll
   STA NES_PpuScroll
 
+  ; return all registers
   PLA
   TAY
   PLA
