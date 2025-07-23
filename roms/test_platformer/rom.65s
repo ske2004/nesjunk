@@ -30,8 +30,21 @@ NES_PpuBkg3       = $2C00
 NES_ApuFrame      = $4017
 NES_ApuDmc        = $4010
 
-dsTILEMAP         = 0
-dsOAM             = 1
+NES_JoyStrobe     = $4016
+NES_Joy1          = $4016
+
+dsNONE            = 0
+dsTILEMAP         = 1
+dsOAM             = 2
+
+bnA               = 0
+bnB               = 1
+bnSELECT          = 2
+bnSTART           = 3
+bnUP              = 4
+bnDOWN            = 5
+bnLEFT            = 6
+bnRIGHT           = 7
 
 .SEGMENT "HEADER"
 .BYTE "NES", $1A
@@ -55,11 +68,16 @@ ScreenID:           .RES 1
 DrawingStage:       .RES 1
 Player_X:           .RES 2
 Player_Y:           .RES 2
+Joy_Current:        .RES 1
+Joy_Previous:       .RES 1
+Joy_Delta:          .RES 1
 
 .SEGMENT "RAM"
 OAM_Data: .RES 256
 
 .SEGMENT "PRG"
+
+PlayerSpeed: .WORD $0002
 
 .MACRO U16_Add_U16 addr1, addr2 
   CLC
@@ -71,18 +89,30 @@ OAM_Data: .RES 256
   STA addr1+1
 .ENDMACRO
 
-.MACRO U16_Sub_U16 addr1, addr2, addr3
+.MACRO U16_Sub_U16 addr1, addr2
   SEC
   LDA addr1
   SBC addr2
-  STA addr3
+  STA addr1
   LDA addr1+1
   SBC addr2+1
-  STA addr3+1
+  STA addr1+1
 .ENDMACRO
 
 .MACRO FX8_ToScreen addr
   LDA addr+1
+.ENDMACRO
+
+.MACRO FX8_ToTileA addr
+  LDA addr+1
+  CLC
+  ROR
+  CLC
+  ROR
+  CLC
+  ROR
+  CLC
+  ROR
 .ENDMACRO
 
 .MACRO VBlank_Wait
@@ -109,6 +139,40 @@ OAM_Data: .RES 256
   LDA pal+3
   STA NES_PpuData
 .ENDMACRO
+
+.MACRO Joy_IfPressed bn
+  LDA #(1<<bn)
+  BIT Joy_Current
+.ENDMACRO
+
+.MACRO Joy_IfJustPressed bn
+  LDA #(1<<bn)
+  BIT Joy_Current
+.ENDMACRO
+
+.PROC Joy_Update
+  LDA Joy_Current
+  STA Joy_Previous
+
+  ; reset strobe
+  LDA #1
+  STA NES_JoyStrobe
+  LDA #0
+  STA NES_JoyStrobe
+
+  .REPEAT 8
+    LDA NES_Joy1
+    LSR
+    ROR Joy_Current
+  .ENDREPEAT
+
+  LDA Joy_Current
+  EOR Joy_Previous
+  AND Joy_Current
+  STA Joy_Delta
+
+  RTS
+.ENDPROC
 
 .PROC _NMI_DrawLine
   _SubTileId      := $00
@@ -270,75 +334,7 @@ OAM_Data: .RES 256
   JSR _LoadScreen
 .ENDMACRO
 
-_RESET:
-  ; Disable interrupts and decimal mode
-  SEI 
-  CLD 
-
-  ; Disable APU frame interrupt & DMC IRQ
-  LDX #1<<6
-  STX NES_ApuFrame
-  LDX #0
-  STX NES_ApuDmc
-
-  ; Stack setup
-  LDX #$FF
-  TXS 
-
-  ; Disable NMI and rendering
-  LDX #$00
-  STX NES_PpuCtrl
-  STX NES_PpuMask
-
-  ; Wait for first vblank (Check N flag, bit 7 of PPUSTATUS)
-  VBlank_Wait
-
-  ; Clear RAM
-  LDX #$00
-  TXA
-@clearmem:
-  STA $0000,X
-  STA $0100,X
-  ; Skip $0200 OAM
-  STA $0300,X
-  STA $0400,X
-  STA $0500,X
-  STA $0600,X
-  STA $0700,X
-  INX
-  BNE @clearmem
-
-  ; Init OAM to $FF
-  LDX #$00
-  LDA #$FF
-@oammemset:
-  STA $0200,X
-  INX
-  BNE @oammemset
-
-; Wait for second vblank
-  VBlank_Wait
-  
-_USERINIT:
-  LoadScreen 0
-
-  ; enable drawing 
-  ORA #%00011110
-  STA NES_PpuMask
-
-  ; enable NMI 
-  LDA #%10000000
-  STA NES_PpuCtrl
-
-_LOOP:
-  JMP _LOOP
-
-.PROC Proc_DS_Line
-  NMI_DrawLine
-  JMP _NMI_END
-.ENDPROC
-
-.PROC Proc_DS_OAM
+.PROC DrawSprites
   FX8_ToScreen Player_X
   STA OAM_Data+3
   FX8_ToScreen Player_Y
@@ -383,6 +379,149 @@ _LOOP:
   LDA #$00
   STA OAM_Data+4*3+2
 
+  RTS
+.ENDPROC
+
+.PROC ProcessMovement
+  Joy_IfPressed bnLEFT
+  BNE @left
+  Joy_IfPressed bnRIGHT
+  BNE @right
+
+  JMP @end1
+  @left:
+    U16_Sub_U16 Player_X, PlayerSpeed
+    JMP @end1
+  @right:
+    U16_Add_U16 Player_X, PlayerSpeed
+    JMP @end1
+
+  @end1:
+
+  Joy_IfPressed bnUP
+  BNE @up
+  Joy_IfPressed bnDOWN
+  BNE @down
+
+  JMP @end2
+  @up:
+    U16_Sub_U16 Player_Y, PlayerSpeed
+    JMP @end2
+  @down:
+    U16_Add_U16 Player_Y, PlayerSpeed
+    JMP @end2
+
+
+  @end2:
+  RTS
+.ENDPROC
+
+.PROC ProcessCollision
+  MetatileOffset := $09
+  LDA #$00
+  STA MetatileOffset
+
+  FX8_ToTileA Player_X
+  STA MetatileOffset
+
+  FX8_ToTileA Player_Y
+  ASL
+  ASL
+  ASL
+  ASL
+  ADC MetatileOffset
+  STA MetatileOffset
+
+  LDX MetatileOffset
+  LDA DATA_scrval, X
+  BNE @collision
+  JMP @end
+  @collision:
+    ; TODO
+  @end:
+  RTS
+.ENDPROC
+
+_RESET:
+  ; Disable interrupts and decimal mode
+  SEI 
+  CLD 
+
+  ; Disable NMI and rendering
+  LDX #$00
+  STX NES_PpuCtrl
+  STX NES_PpuMask
+
+  ; Disable APU frame interrupt & DMC IRQ
+  LDX #1<<6
+  STX NES_ApuFrame
+  LDX #0
+  STX NES_ApuDmc
+
+  ; Stack setup
+  LDX #$FF
+  TXS 
+
+  ; Wait for first vblank (Check N flag, bit 7 of PPUSTATUS)
+  VBlank_Wait
+
+  ; Clear RAM
+  LDX #$00
+  TXA
+@clearmem:
+  STA $0000,X
+  STA $0100,X
+  ; Skip $0200 OAM
+  STA $0300,X
+  STA $0400,X
+  STA $0500,X
+  STA $0600,X
+  STA $0700,X
+  INX
+  BNE @clearmem
+
+  ; Init OAM to $FF
+  LDX #$00
+  LDA #$FF
+@oammemset:
+  STA $0200,X
+  INX
+  BNE @oammemset
+
+; Wait for second vblank
+  VBlank_Wait
+  
+_USERINIT:
+  LoadScreen 0
+
+  LDA #dsTILEMAP
+  STA DrawingStage
+
+  ; enable drawing 
+  ORA #%00011110
+  STA NES_PpuMask
+
+  ; enable NMI 
+  LDA #%10000000
+  STA NES_PpuCtrl
+
+_LOOP:
+  JSR Joy_Update
+  JSR ProcessMovement
+  JSR ProcessCollision
+  JSR DrawSprites
+  JMP _LOOP
+
+.PROC Proc_DS_Dummy
+  JMP _NMI_END
+.ENDPROC
+
+.PROC Proc_DS_Line
+  NMI_DrawLine
+  JMP _NMI_END
+.ENDPROC
+
+.PROC Proc_DS_OAM
   ; do the OAMDMA!
   LDA #>OAM_Data
   STA NES_PpuOAMDMA
@@ -390,10 +529,10 @@ _LOOP:
 .ENDPROC
 
 LUT_DrawingStage_lo:
-.BYTE <(Proc_DS_Line-1), <(Proc_DS_OAM-1)
+.BYTE <(Proc_DS_Dummy-1), <(Proc_DS_Line-1), <(Proc_DS_OAM-1)
 
 LUT_DrawingStage_hi:
-.BYTE >(Proc_DS_Line-1), >(Proc_DS_OAM-1)
+.BYTE >(Proc_DS_Dummy-1), >(Proc_DS_Line-1), >(Proc_DS_OAM-1)
 
 _NMI:
   ; save all registers
