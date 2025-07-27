@@ -46,6 +46,11 @@ bnDOWN            = 5
 bnLEFT            = 6
 bnRIGHT           = 7
 
+dirUP             = 0
+dirDOWN           = 1
+dirLEFT           = 2
+dirRIGHT          = 3
+
 .SEGMENT "HEADER"
 .BYTE "NES", $1A
 .BYTE iNES_Prg16KBanks
@@ -68,16 +73,27 @@ ScreenID:           .RES 1
 DrawingStage:       .RES 1
 Player_X:           .RES 2
 Player_Y:           .RES 2
+Player_VelY:        .RES 2
+Player_Dir:         .RES 1
+Player_OnGround:    .RES 1
+CollisionDot_X:     .RES 2
+CollisionDot_Y:     .RES 2
+CollisionDot_Dir:   .RES 1
+CollisionDot_Result:.RES 1
 Joy_Current:        .RES 1
 Joy_Previous:       .RES 1
 Joy_Delta:          .RES 1
+Retrace:            .RES 1
 
 .SEGMENT "RAM"
 OAM_Data: .RES 256
 
 .SEGMENT "PRG"
-
-PlayerSpeed: .WORD $0002
+Delta1:             .WORD $0100
+PlayerSpeed:        .WORD $0100
+PlayerAccelY:       .WORD $0008
+PlayerTerminalVelY: .WORD $0E00
+PlayerJumpVelY:     .WORD $0200^$FFFF
 
 .MACRO U16_Add_U16 addr1, addr2 
   CLC
@@ -89,14 +105,24 @@ PlayerSpeed: .WORD $0002
   STA addr1+1
 .ENDMACRO
 
-.MACRO U16_Sub_U16 addr1, addr2
+.MACRO U16_Sub_U16 addr1, addr2, addr3
   SEC
   LDA addr1
   SBC addr2
-  STA addr1
+  STA addr3
   LDA addr1+1
   SBC addr2+1
-  STA addr1+1
+  STA addr3+1
+.ENDMACRO
+
+.MACRO U16_Cmp_U16 addr1, addr2 
+  U16_Sub_U16 addr1, addr2, $0E ; idfk
+  LDA $0E+1
+.ENDMACRO
+
+.MACRO I16_IsNegative addr
+  LDA #$80
+  BIT addr+1
 .ENDMACRO
 
 .MACRO FX8_ToScreen addr
@@ -113,6 +139,16 @@ PlayerSpeed: .WORD $0002
   ROR
   CLC
   ROR
+.ENDMACRO
+
+.MACRO FX8_FromTileA addr
+  ASL
+  ASL
+  ASL
+  ASL
+  STA addr+1
+  LDA #$00
+  STA addr
 .ENDMACRO
 
 .MACRO VBlank_Wait
@@ -147,7 +183,7 @@ PlayerSpeed: .WORD $0002
 
 .MACRO Joy_IfJustPressed bn
   LDA #(1<<bn)
-  BIT Joy_Current
+  BIT Joy_Delta
 .ENDMACRO
 
 .PROC Joy_Update
@@ -383,6 +419,33 @@ PlayerSpeed: .WORD $0002
 .ENDPROC
 
 .PROC ProcessMovement
+  LDA #$00
+  STA Player_OnGround
+
+  U16_Add_U16 Player_VelY, PlayerAccelY
+  U16_Cmp_U16 Player_VelY, PlayerTerminalVelY
+  BPL @cap_velocity
+  JMP @end0
+  @cap_velocity:
+    LDA PlayerTerminalVelY
+    STA Player_VelY
+    LDA PlayerTerminalVelY+1
+    STA Player_VelY+1
+  @end0:
+
+  I16_IsNegative Player_VelY
+  BPL @pos
+    LDA #dirUP
+    STA Player_Dir
+    JMP @endDir
+  @pos:
+    LDA #dirDOWN
+    STA Player_Dir
+  @endDir:
+
+  U16_Add_U16 Player_Y, Player_VelY
+  JSR ProcessCollision
+
   Joy_IfPressed bnLEFT
   BNE @left
   Joy_IfPressed bnRIGHT
@@ -390,45 +453,56 @@ PlayerSpeed: .WORD $0002
 
   JMP @end1
   @left:
-    U16_Sub_U16 Player_X, PlayerSpeed
+    LDA #dirLEFT
+    STA Player_Dir
+    U16_Sub_U16 Player_X, PlayerSpeed, Player_X
+    JSR ProcessCollision
     JMP @end1
   @right:
+    LDA #dirRIGHT
+    STA Player_Dir
     U16_Add_U16 Player_X, PlayerSpeed
+    JSR ProcessCollision
     JMP @end1
 
   @end1:
 
-  Joy_IfPressed bnUP
-  BNE @up
-  Joy_IfPressed bnDOWN
-  BNE @down
+  Joy_IfJustPressed bnA
+  BNE @jump
 
   JMP @end2
-  @up:
-    U16_Sub_U16 Player_Y, PlayerSpeed
-    JMP @end2
-  @down:
-    U16_Add_U16 Player_Y, PlayerSpeed
-    JMP @end2
+  @jump:
+    LDA Player_OnGround
+    BEQ @end2
 
+    LDA PlayerJumpVelY
+    STA Player_VelY
+    LDA PlayerJumpVelY+1
+    STA Player_VelY+1
+    JMP @end2
 
   @end2:
   RTS
 .ENDPROC
 
-.PROC ProcessCollision
+.PROC ResolveDotTileCollision
+  TileX          := $07
+  TileY          := $08
   MetatileOffset := $09
-  LDA #$00
+  JmpOffset      := $0A
   STA MetatileOffset
 
-  FX8_ToTileA Player_X
+  FX8_ToTileA CollisionDot_X
+  STA TileX
   STA MetatileOffset
 
-  FX8_ToTileA Player_Y
+  FX8_ToTileA CollisionDot_Y
+  STA TileY
   ASL
   ASL
   ASL
   ASL
+  CLC
   ADC MetatileOffset
   STA MetatileOffset
 
@@ -437,8 +511,121 @@ PlayerSpeed: .WORD $0002
   BNE @collision
   JMP @end
   @collision:
-    ; TODO
+    INC CollisionDot_Result
+    LDX CollisionDot_Dir
+    LDA TLB_Dir_inverse, X
+    TAX
+    LDA DirTbl_lo, X
+    STA JmpOffset
+    LDA DirTbl_hi, X
+    STA JmpOffset+1
+    JMP (JmpOffset)
   @end:
+  RTS
+DirTbl_lo:
+  .BYTE <OnDirUp, <OnDirDown, <OnDirLeft, <OnDirRight
+DirTbl_hi:
+  .BYTE >OnDirUp, >OnDirDown, >OnDirLeft, >OnDirRight
+
+OnDirUp:
+  LDA TileY
+  FX8_FromTileA CollisionDot_Y
+  U16_Sub_U16 CollisionDot_Y, Delta1, CollisionDot_Y
+  RTS
+OnDirDown:
+  LDA TileY
+  CLC 
+  ADC #1
+  FX8_FromTileA CollisionDot_Y
+  RTS
+OnDirLeft:
+  LDA TileX
+  FX8_FromTileA CollisionDot_X
+  U16_Sub_U16 CollisionDot_X, Delta1, CollisionDot_X
+  RTS
+OnDirRight:
+  LDA TileX
+  CLC 
+  ADC #1
+  FX8_FromTileA CollisionDot_X
+  RTS
+
+.ENDPROC
+
+.MACRO LoadOffsetedCollisionDot sourceX, sourceY, sourceDir, offsetX, offsetY
+  LDA #$00
+  STA CollisionDot_X
+  STA CollisionDot_Y
+  LDA #offsetX
+  STA CollisionDot_X+1
+  LDA #offsetY
+  STA CollisionDot_Y+1
+ 
+  U16_Add_U16 CollisionDot_X, sourceX
+  U16_Add_U16 CollisionDot_Y, sourceY
+  LDA sourceDir
+  STA CollisionDot_Dir
+.ENDMACRO
+
+.MACRO ApplyOffsetedCollisionDot sourceX, sourceY, offsetX, offsetY
+  LDA #$00
+  STA sourceX
+  STA sourceY
+  LDA #offsetX
+  STA sourceX+1
+  LDA #offsetY
+  STA sourceY+1
+ 
+  U16_Sub_U16 CollisionDot_X, Player_X, Player_X
+  U16_Sub_U16 CollisionDot_Y, Player_Y, Player_Y
+.ENDMACRO
+
+.PROC ProcessCollision
+  LDA #$00
+  STA CollisionDot_Result
+
+  LoadOffsetedCollisionDot Player_X, Player_Y, Player_Dir, 0, 0
+  JSR ResolveDotTileCollision
+  ApplyOffsetedCollisionDot Player_X, Player_Y, 0, 0
+
+  LoadOffsetedCollisionDot Player_X, Player_Y, Player_Dir, 0, 15
+  JSR ResolveDotTileCollision
+  ApplyOffsetedCollisionDot Player_X, Player_Y, 0, 15
+  
+  LoadOffsetedCollisionDot Player_X, Player_Y, Player_Dir, 15, 0
+  JSR ResolveDotTileCollision
+  ApplyOffsetedCollisionDot Player_X, Player_Y, 15, 0
+
+  LoadOffsetedCollisionDot Player_X, Player_Y, Player_Dir, 15, 15
+  JSR ResolveDotTileCollision
+  ApplyOffsetedCollisionDot Player_X, Player_Y, 15, 15
+
+  LoadOffsetedCollisionDot Player_X, Player_Y, Player_Dir, 0, 16
+  JSR ResolveDotTileCollision
+  LoadOffsetedCollisionDot Player_X, Player_Y, Player_Dir, 15, 16
+  JSR ResolveDotTileCollision
+
+  LDA CollisionDot_Result
+  BNE @collided
+
+  RTS
+@collided:
+  LDA #dirDOWN
+  CMP Player_Dir
+  BEQ @down
+  LDA #dirUP
+  CMP Player_Dir
+  BEQ @up
+  JMP @not_on_ground
+;
+@down:
+  LDA #$01
+  STA Player_OnGround
+@up:
+  LDA #$00
+  STA Player_VelY
+  STA Player_VelY+1
+@not_on_ground:
   RTS
 .ENDPROC
 
@@ -488,7 +675,7 @@ _RESET:
   INX
   BNE @oammemset
 
-; Wait for second vblank
+  ; Wait for second vblank
   VBlank_Wait
   
 _USERINIT:
@@ -498,7 +685,7 @@ _USERINIT:
   STA DrawingStage
 
   ; enable drawing 
-  ORA #%00011110
+  LDA #%00011110
   STA NES_PpuMask
 
   ; enable NMI 
@@ -506,9 +693,12 @@ _USERINIT:
   STA NES_PpuCtrl
 
 _LOOP:
+  LDA Retrace
+  BNE _LOOP
+  INC Retrace
+
   JSR Joy_Update
   JSR ProcessMovement
-  JSR ProcessCollision
   JSR DrawSprites
   JMP _LOOP
 
@@ -542,9 +732,12 @@ _NMI:
   TYA
   PHA
 
+  LDA Retrace
+  BEQ _NMI_END
+  DEC Retrace
+
   ; acknowledge
   LDA NES_PpuStatus
-  LDA #$02
 
   ; select drawing stage
   LDX DrawingStage
@@ -564,6 +757,8 @@ _NMI_END:
   PLA
   TAX
   PLA
+
+  ; goodbye
   RTI
 
 _IRQ:

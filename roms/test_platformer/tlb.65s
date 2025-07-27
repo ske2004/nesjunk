@@ -7,3 +7,9 @@ TLB_Y_hi:
 .REPEAT 30, YPos
   .BYTE >(YPos*32)
 .ENDREPEAT
+
+TLB_Dir_inverse:
+.BYTE dirDOWN
+.BYTE dirUP
+.BYTE dirRIGHT
+.BYTE dirLEFT
